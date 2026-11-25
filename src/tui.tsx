@@ -2,7 +2,7 @@
 import { Plugin } from "@opencode/plugin/tui"
 import { createSignal, For, Show } from "solid-js"
 import { RGBA, type BoxRenderable } from "@opentui/core"
-import { accountWarnings, compact, providerName, quotaBar, resets, visibleWindows, windowLabel } from "./display.ts"
+import { accountName, accountWarnings, compact, quotaBar, resets, visibleWindows, windowLabel } from "./display.ts"
 import { rpc, type Snapshot } from "./rpc.ts"
 
 export default Plugin.define({
@@ -71,7 +71,7 @@ export default Plugin.define({
           const reset = () => resets(windows(),now())
           const warnings = () => accountWarnings(account,now(),unavailable())
           return <box flexDirection="column" minWidth={0} width="100%" marginTop={1}>
-            <text fg={theme.text.base} wrapMode="word"><b>{providerName(account.provider)} #{account.id}</b><span style={{fg:theme.text.muted}}>{reset() ? `, resets in ${reset()}` : ""}</span></text>
+            <text fg={theme.text.base} wrapMode="word"><b>{accountName(account)}</b><span style={{fg:theme.text.muted}}>{reset() ? `, resets in ${reset()}` : ""}</span></text>
             <For each={windows()}>{window => {
               const bar = () => quotaBar(window.remaining,columns()-labelWidth()-6)
               return <box flexDirection="row" gap={1} minWidth={0} width="100%">

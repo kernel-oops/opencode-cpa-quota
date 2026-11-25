@@ -5,6 +5,7 @@ const periods = new Map<string,number>([["five_hour",18000],["seven_day",604800]
 const labels = new Map<string,string>([["five_hour","5 hour"],["seven_day","7 day"],["seven_day_opus","7 day Opus"],["seven_day_sonnet","7 day Sonnet"]])
 const usageErrors = new Map<string,string>([["credentials","Usage authentication failed"],["rate-limited","Usage rate-limited"],["failed","Usage refresh failed"]])
 const managementErrors = new Map<string,string>([["configuration","configuration error"],["credentials","management authentication failed"],["management","management unavailable"],["rate-limited","management rate-limited"],["invalid-response","management response changed"],["truncated","inventory truncated"]])
+export const accountName = (a: Account) => `${providerName(a.provider)} ${a.label ?? `#${a.id}`}`
 export const providerName = (name: string) => name === "claude" ? "Claude" : name === "codex" ? "Codex" : name.charAt(0).toUpperCase() + name.slice(1)
 const period = (w: Window) => periods.get(w.name) ?? w.duration
 export function windowLabel(w: Window): string {
@@ -51,11 +52,11 @@ export function compact(s: Snapshot | undefined, now: number): string {
   if (s.error) return `CPA ${managementErrors.get(s.error) ?? "management unavailable"}`
   for (const a of s.accounts) {
     const warning = accountWarnings(a,now).find(w => !w.startsWith("Last known") && w !== "Active usage unavailable")
-    if (warning) return `CPA ${providerName(a.provider)} #${a.id} · ${warning}`
+    if (warning) return `CPA ${accountName(a)} · ${warning}`
   }
   const windows = s.accounts.flatMap(a=>visibleWindows(a,now))
   const low = s.accounts.find(a=>visibleWindows(a,now).some(w=>w.remaining<20))
-  if (low) return `CPA ${providerName(low.provider)} #${low.id} · low quota`
+  if (low) return `CPA ${accountName(low)} · low quota`
   if (windows.length && windows.every(w=>now-w.observed>600)) return "CPA quota stale"
   return `CPA ${s.accounts.length} account${s.accounts.length===1 ? "" : "s"}${s.accounts.length && !windows.length ? " · awaiting quota" : ""}`
 }

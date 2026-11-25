@@ -8,12 +8,12 @@ export const rpc = {
   id: "opencode-cpa-quota",
   methods: { snapshot: { input: record({}), output: record({
     accounts: { type: "array", maxItems: 200, items: record({
-      id: { type: "string", minLength: 4, maxLength: 64 },
+      id: { type: "string", minLength: 4, maxLength: 64 }, label: { type: "string", maxLength: 80 },
       provider: { type: "string", maxLength: 32 },
       status: { enum: ["active", "disabled", "error", "pending", "unknown"] }, unavailable: { type: "boolean" }, cooling: { type: "boolean" }, retry: time,
       modelCooldowns: bounded, activeError: { enum: [null, "unavailable", "failed", "credentials", "rate-limited"] },
       windows: { type: "array", maxItems: 24, items: record({ name: { type: "string", maxLength: 48 }, used: bounded, remaining: bounded, reset: time, observed: time, source: { enum: ["active", "passive"] }, duration: { type: "integer", minimum: 1, maximum: 31536000 } }, ["duration"]) },
-    }) }, refreshing: { type: "boolean" }, observed: time,
+    }, ["label"]) }, refreshing: { type: "boolean" }, observed: time,
     error: { enum: [null, "configuration", "credentials", "management", "rate-limited", "invalid-response", "truncated"] },
   }) } }, events: {},
 } as const

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto"
 
 export type Window = { name: string; used: number; remaining: number; reset: number | null; observed: number; source: "passive" | "active"; duration?: number }
-export type Account = { id: string; provider: string; status: "active" | "disabled" | "error" | "pending" | "unknown"; unavailable: boolean; cooling: boolean; retry: number | null; modelCooldowns: number; windows: Window[]; activeError: "unavailable" | "failed" | "credentials" | "rate-limited" | null }
+export type Account = { id: string; label?: string; provider: string; status: "active" | "disabled" | "error" | "pending" | "unknown"; unavailable: boolean; cooling: boolean; retry: number | null; modelCooldowns: number; windows: Window[]; activeError: "unavailable" | "failed" | "credentials" | "rate-limited" | null }
 export type InventoryAccount = { key: string; index?: string; accountID?: string; view: Account }
 export const object = (v: unknown): Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : {}
 export const hash = (v: string) => createHash("sha256").update(v).digest("hex")
@@ -80,10 +80,16 @@ export function mergeWindows(a: Window[], b: Window[]): Window[] {
   for (const w of b) if (!windows.has(w.name) || windows.get(w.name)!.observed <= w.observed) windows.set(w.name, w)
   return [...windows.values()].slice(0,24)
 }
+// "marc@kernel-panic.im" -> "ma@ke"; only [a-z0-9] reaches the TUI, anything malformed gives undefined.
+export function emailLabel(v: unknown): string | undefined {
+  if (typeof v !== "string" || v.length > 254 || !/^[^@\s]+@[^@\s]+$/.test(v)) return
+  const [local, domain] = v.toLowerCase().split("@").map(part => part.replace(/[^a-z0-9]/g, "").slice(0,2))
+  return local && domain ? `${local}@${domain}` : undefined
+}
 export function inventory(raw: unknown, now: number): { accounts: InventoryAccount[]; truncated: boolean } {
   const files = object(raw).files
   if (!Array.isArray(files)) throw new Error("invalid inventory")
-  const accounts: InventoryAccount[] = [], seen = new Set<string>()
+  const accounts: InventoryAccount[] = [], seen = new Set<string>(), emails = new Map<InventoryAccount, string>()
   for (const [i, raw] of files.slice(0,200).entries()) {
     const item = object(raw)
     const index = typeof item.auth_index === "string" && /^[a-fA-F0-9]{16}$/.test(item.auth_index) ? item.auth_index : undefined
@@ -99,14 +105,25 @@ export function inventory(raw: unknown, now: number): { accounts: InventoryAccou
     const claim = object(accountID).chatgpt_account_id
     const directClaim = object(item.id_token).chatgpt_account_id
     const candidate = claim ?? directClaim
-    accounts.push({ key, index, accountID: typeof candidate === "string" && /^[a-zA-Z0-9_-]{1,128}$/.test(candidate) ? candidate : undefined,
-      view: { id: key, provider, status: item.disabled === true ? "disabled" : status, unavailable: item.unavailable === true, cooling: item.unavailable === true && retry !== null && retry > now, retry, modelCooldowns: cooldowns.filter(c => c.scope === "model" && (epoch(c.retry_at) ?? 0) > now).length, windows: passive(item.quota, now), activeError: index && (provider === "claude" || provider === "codex") ? null : "unavailable" } })
+    const account: InventoryAccount = { key, index, accountID: typeof candidate === "string" && /^[a-zA-Z0-9_-]{1,128}$/.test(candidate) ? candidate : undefined,
+      view: { id: key, provider, status: item.disabled === true ? "disabled" : status, unavailable: item.unavailable === true, cooling: item.unavailable === true && retry !== null && retry > now, retry, modelCooldowns: cooldowns.filter(c => c.scope === "model" && (epoch(c.retry_at) ?? 0) > now).length, windows: passive(item.quota, now), activeError: index && (provider === "claude" || provider === "codex") ? null : "unavailable" } }
+    accounts.push(account)
+    const label = emailLabel(item.email)
+    if (label) emails.set(account, label)
   }
   for (const account of accounts) {
     if (!account.index) continue
     let length = 4
     while (length < 64 && accounts.some(other => other !== account && other.key.startsWith(account.key.slice(0,length)))) length++
     account.view.id = account.key.slice(0,length)
+  }
+  for (const account of accounts) {
+    const label = emails.get(account)
+    if (!label) { account.view.label = `#${account.view.id}`; continue }
+    const same = accounts.filter(other => other !== account && other.view.provider === account.view.provider && emails.get(other) === label)
+    let length = 0
+    while (same.length && length < account.key.length && same.some(other => other.key.startsWith(account.key.slice(0,length)))) length++
+    account.view.label = length ? `${label}·${account.key.slice(0,length)}` : label
   }
   return { accounts, truncated: files.length > 200 }
 }
